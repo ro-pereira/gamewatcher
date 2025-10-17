@@ -1,0 +1,102 @@
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
+import re
+import time
+from selenium.common.exceptions import NoSuchElementException
+
+options = Options()
+options.add_argument("--headless=new")
+options.add_argument("--disable-gpu")
+
+driver = webdriver.Chrome(
+    service=Service(ChromeDriverManager().install()),
+    options=options
+)
+
+url_globo = "https://ge.globo.com/agenda/#/futebol/17-10-2025"
+
+
+def get_result_list():
+    result = []
+
+    try:
+        driver.get(url_globo)
+        try:
+            accept_cookies_button = WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable(
+                    (By.CSS_SELECTOR, 'div.cookie-banner-lgpd_button-box button'))
+            )
+            accept_cookies_button.click()
+        except:
+            pass
+
+        championship_groups = WebDriverWait(driver, 20).until(
+            EC.presence_of_all_elements_located(
+                (By.CSS_SELECTOR, 'div.eventGrouperstyle__GroupByChampionshipsWrapper-sc-1bz1qr-0.gumeun'))
+        )
+
+        for championship in championship_groups:
+
+            event_name_tag = championship.find_element(
+                By.CLASS_NAME, 'eventGrouperstyle__ChampionshipName-sc-1bz1qr-2.eDkDKF')
+            event_name = event_name_tag.text if event_name_tag else None
+
+            tournament_matches = championship.find_elements(
+                By.CSS_SELECTOR, 'a.sc-eldPxv.fdoTBT')
+
+            for index, match in enumerate(tournament_matches):
+                try:
+                    button_where_to_watch = match.find_element(
+                        By.CLASS_NAME, 'sc-hzhJZQ.SLnjU')
+                    time.sleep(1.2)
+                    if button_where_to_watch.text.strip() == "Onde assistir?":
+                        driver.execute_script(
+                            "arguments[0].scrollIntoView(true);", button_where_to_watch)
+                        time.sleep(0.4)
+                        driver.execute_script(
+                            "arguments[0].click();", button_where_to_watch)
+                        time.sleep(1.2)
+
+                        modal_content = WebDriverWait(driver, 10).until(
+                            EC.visibility_of_element_located(
+                                (By.ID, "drawer_container-agenda-modrawer"))
+                        )
+
+                        channels_match = modal_content.find_elements(
+                            By.CLASS_NAME, 'sc-ewnqHT.gHsKNV')
+
+                        channels = []
+
+                        date_match = modal_content.find_elements(
+                            By.CSS_SELECTOR, 'span.infosstyle__FooterItem-sc-pa6je2-3.eutUSD')
+
+                        try:
+                            hour = next((t.text.strip() for t in date_match if re.match(
+                                r'^\d{2}:\d{2}$', t.text.strip())), None)
+                        except:
+                            hour = None
+
+                        for channel_match_info in channels_match:
+                            channel = channel_match_info.find_element(
+                                By.CLASS_NAME, "sc-iVCKna.lhodZX")
+                            channels.append(channel.text.strip())
+
+                        result.append({
+                            "hour": hour,
+                            "event_name": event_name,
+                            "channels": channels
+                        })
+              
+                except NoSuchElementException:
+                    continue
+
+        return result
+
+    finally:
+        driver.quit()
+
