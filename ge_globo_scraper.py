@@ -5,25 +5,27 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.common.exceptions import NoSuchElementException
 import re
 import time
-from selenium.common.exceptions import NoSuchElementException
 
 options = Options()
-options.add_argument("--headless=new")
+options.add_argument("--headless=new") 
 options.add_argument("--disable-gpu")
-
+options.add_argument("--log-level=3") 
+options.add_argument("--disable-logging")  
+options.add_argument("--silent")  
+options.add_experimental_option("excludeSwitches", ["enable-logging"]) 
 driver = webdriver.Chrome(
     service=Service(ChromeDriverManager().install()),
     options=options
 )
 
-url_globo = "https://ge.globo.com/agenda/#/futebol/17-10-2025"
+url_globo = "https://ge.globo.com/agenda/#/futebol/18-10-2025"
 
 
-def get_result_list():
+def scrape_globo_matches():
     result = []
-
     try:
         driver.get(url_globo)
         try:
@@ -49,7 +51,7 @@ def get_result_list():
             tournament_matches = championship.find_elements(
                 By.CSS_SELECTOR, 'a.sc-eldPxv.fdoTBT')
 
-            for index, match in enumerate(tournament_matches):
+            for match in tournament_matches:
                 try:
                     button_where_to_watch = match.find_element(
                         By.CLASS_NAME, 'sc-hzhJZQ.SLnjU')
@@ -61,6 +63,14 @@ def get_result_list():
                         driver.execute_script(
                             "arguments[0].click();", button_where_to_watch)
                         time.sleep(1.2)
+
+                        team_1 = match.find_element(By.CLASS_NAME, "sc-bmzYkS.ivQJob")
+                        team_1_name = team_1.find_element(By.CSS_SELECTOR, "span.sc-eeDRCY.kXIsjf").text.strip()
+                        team_1_image = team_1.find_element(By.CSS_SELECTOR, "img").get_attribute("src")
+
+                        team_2 = match.find_element(By.CLASS_NAME, "sc-bmzYkS.epSQAH")
+                        team_2_name = team_2.find_element(By.CSS_SELECTOR, "span.sc-eeDRCY.kXIsjf").text.strip()
+                        team_2_image = team_2.find_element(By.CSS_SELECTOR, "img").get_attribute("src")
 
                         modal_content = WebDriverWait(driver, 10).until(
                             EC.visibility_of_element_located(
@@ -83,15 +93,29 @@ def get_result_list():
 
                         for channel_match_info in channels_match:
                             channel = channel_match_info.find_element(
-                                By.CLASS_NAME, "sc-iVCKna.lhodZX")
-                            channels.append(channel.text.strip())
+                                By.CLASS_NAME, "sc-iVCKna.lhodZX").text.strip()
+                            if channel != "Cartola":
+                             channels.append(channel)
 
                         result.append({
                             "hour": hour,
                             "event_name": event_name,
+                            "team_1_name": team_1_name,
+                            "team_1_img": team_1_image,
+                            "team_2_name": team_2_name,
+                            "team_2_img": team_2_image,
                             "channels": channels
                         })
-              
+
+
+                    try:
+                        close_button = modal_content.find_element(By.CSS_SELECTOR, 'button[aria-label="Fechar"]')
+                        close_button.click()
+
+                    except Exception:
+                        pass
+
+
                 except NoSuchElementException:
                     continue
 
@@ -99,4 +123,3 @@ def get_result_list():
 
     finally:
         driver.quit()
-
