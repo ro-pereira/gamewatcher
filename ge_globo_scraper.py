@@ -1,21 +1,22 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.common.exceptions import NoSuchElementException
 import re
 import time
 
+from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from webdriver_manager.chrome import ChromeDriverManager
+
 options = Options()
-options.add_argument("--headless=new") 
+options.add_argument("--headless=new")
 options.add_argument("--disable-gpu")
-options.add_argument("--log-level=3") 
-options.add_argument("--disable-logging")  
-options.add_argument("--silent")  
-options.add_experimental_option("excludeSwitches", ["enable-logging"]) 
+options.add_argument("--log-level=3")
+options.add_argument("--disable-logging")
+options.add_argument("--silent")
+options.add_experimental_option("excludeSwitches", ["enable-logging"])
 driver = webdriver.Chrome(
     service=Service(ChromeDriverManager().install()),
     options=options
@@ -64,13 +65,30 @@ def scrape_globo_matches():
                             "arguments[0].click();", button_where_to_watch)
                         time.sleep(1.2)
 
-                        team_1 = match.find_element(By.CLASS_NAME, "sc-bmzYkS.ivQJob")
-                        team_1_name = team_1.find_element(By.CSS_SELECTOR, "span.sc-eeDRCY.kXIsjf").text.strip()
-                        team_1_image = team_1.find_element(By.CSS_SELECTOR, "img").get_attribute("src")
+                        team_1 = match.find_element(
+                            By.CLASS_NAME, "sc-bmzYkS.ivQJob")
+                        team_1_name_tag = team_1.find_element(
+                            By.CSS_SELECTOR, "span.sc-eeDRCY.kXIsjf").text.strip()
+                        team_1_name = team_1_name_tag if team_1_name_tag else None
+                        team_1_image = team_1.find_element(
+                            By.CSS_SELECTOR, "img").get_attribute("src")
 
-                        team_2 = match.find_element(By.CLASS_NAME, "sc-bmzYkS.epSQAH")
-                        team_2_name = team_2.find_element(By.CSS_SELECTOR, "span.sc-eeDRCY.kXIsjf").text.strip()
-                        team_2_image = team_2.find_element(By.CSS_SELECTOR, "img").get_attribute("src")
+                        team_2 = match.find_element(
+                            By.CLASS_NAME, "sc-bmzYkS.epSQAH")
+                        team_2_name_tag = team_2.find_element(
+                            By.CSS_SELECTOR, "span.sc-eeDRCY.kXIsjf").text.strip()
+                        team_2_name = team_2_name_tag if team_2_name_tag else None
+                        team_2_image = team_2.find_element(
+                            By.CSS_SELECTOR, "img").get_attribute("src")
+
+                        if not team_1_name or not team_2_name:
+                            try:
+                                close_button = driver.find_element(
+                                    By.CSS_SELECTOR, 'button[aria-label="Fechar"]')
+                                close_button.click()
+                            except Exception:
+                                pass
+                            continue
 
                         modal_content = WebDriverWait(driver, 10).until(
                             EC.visibility_of_element_located(
@@ -95,7 +113,7 @@ def scrape_globo_matches():
                             channel = channel_match_info.find_element(
                                 By.CLASS_NAME, "sc-iVCKna.lhodZX").text.strip()
                             if channel != "Cartola":
-                             channels.append(channel)
+                                channels.append(channel)
 
                         result.append({
                             "hour": hour,
@@ -107,14 +125,13 @@ def scrape_globo_matches():
                             "channels": channels
                         })
 
-
                     try:
-                        close_button = modal_content.find_element(By.CSS_SELECTOR, 'button[aria-label="Fechar"]')
+                        close_button = modal_content.find_element(
+                            By.CSS_SELECTOR, 'button[aria-label="Fechar"]')
                         close_button.click()
 
                     except Exception:
                         pass
-
 
                 except NoSuchElementException:
                     continue
