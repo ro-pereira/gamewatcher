@@ -11,6 +11,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
+from database_wrapper import add_team_if_not_exists
+
 options = Options()
 options.add_argument("--headless=new")
 options.add_argument("--disable-gpu")
@@ -25,12 +27,10 @@ driver = webdriver.Chrome(
 
 BASE_URL = "https://ge.globo.com/agenda/#/futebol/"
 
-def scrape_globo_matches():
 
-    result = []
+def scrape_globo_matches():
     try:
         today = datetime.today()
-        print(today, 'today')
         for i in range(5):
             current_date = today + timedelta(days=i)
             date_str = current_date.strftime("%d-%m-%Y")
@@ -53,6 +53,7 @@ def scrape_globo_matches():
 
             for championship in championship_groups:
 
+
                 event_name_tag = championship.find_element(
                     By.CLASS_NAME, 'eventGrouperstyle__ChampionshipName-sc-1bz1qr-2.eDkDKF')
                 event_name = event_name_tag.text if event_name_tag else None
@@ -61,6 +62,7 @@ def scrape_globo_matches():
                     By.CSS_SELECTOR, 'a.sc-eldPxv.fdoTBT')
 
                 for match in tournament_matches:
+                    
                     try:
                         button_where_to_watch = match.find_element(
                             By.CLASS_NAME, 'sc-hzhJZQ.SLnjU')
@@ -72,6 +74,8 @@ def scrape_globo_matches():
                             driver.execute_script(
                                 "arguments[0].click();", button_where_to_watch)
                             time.sleep(1.2)
+
+                            
 
                             team_1 = match.find_element(
                                 By.CLASS_NAME, "sc-bmzYkS.ivQJob")
@@ -123,7 +127,7 @@ def scrape_globo_matches():
                             except:
                                 hour = None
 
-                            result.append({
+                            current_match = {
                                 "date": date_str,
                                 "hour": hour,
                                 "event_name": event_name,
@@ -132,7 +136,9 @@ def scrape_globo_matches():
                                 "team_2_name": team_2_name,
                                 "team_2_img": team_2_image,
                                 "channels": channels
-                            })
+                            }
+
+                            add_team_if_not_exists(current_match)
 
                         try:
                             close_button = modal_content.find_element(
@@ -145,8 +151,8 @@ def scrape_globo_matches():
                     except NoSuchElementException:
                         continue
 
-        return result
-
     finally:
         driver.quit()
 
+
+scrape_globo_matches()
