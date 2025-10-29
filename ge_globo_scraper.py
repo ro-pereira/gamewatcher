@@ -52,8 +52,6 @@ def scrape_globo_matches():
             )
 
             for championship in championship_groups:
-
-
                 event_name_tag = championship.find_element(
                     By.CLASS_NAME, 'eventGrouperstyle__ChampionshipName-sc-1bz1qr-2.eDkDKF')
                 event_name = event_name_tag.text if event_name_tag else None
@@ -62,7 +60,6 @@ def scrape_globo_matches():
                     By.CSS_SELECTOR, 'a.sc-eldPxv.fdoTBT')
 
                 for match in tournament_matches:
-                    
                     try:
                         button_where_to_watch = match.find_element(
                             By.CLASS_NAME, 'sc-hzhJZQ.SLnjU')
@@ -74,8 +71,6 @@ def scrape_globo_matches():
                             driver.execute_script(
                                 "arguments[0].click();", button_where_to_watch)
                             time.sleep(1.2)
-
-                            
 
                             team_1 = match.find_element(
                                 By.CLASS_NAME, "sc-bmzYkS.ivQJob")

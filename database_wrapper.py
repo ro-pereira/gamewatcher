@@ -1,6 +1,5 @@
 import os
 from datetime import datetime
-from typing import Dict, List, Optional
 
 import psycopg2
 from dotenv import load_dotenv
@@ -17,13 +16,11 @@ port = os.getenv("DB_PORT")
 
 
 def connect_db():
-    conn = psycopg2.connect(
-        host=host,
-        database=database,
-        user=user,
-        password=password,
-        port=port
-    )
+    conn = psycopg2.connect(host=host,
+                            database=database,
+                            user=user,
+                            password=password,
+                            port=port)
     cur = conn.cursor()
     return conn, cur
 
@@ -46,13 +43,14 @@ def list_tables(cur):
 
 
 def get_team_id_by_name(name):
-    cur.execute("SELECT id FROM teams WHERE name = %s", (name,))
+    cur.execute("SELECT id FROM teams WHERE name = %s", (name, ))
     filtered_id = cur.fetchone()
     return filtered_id[0] if filtered_id else None
 
 
 def get_id_games_by_name(date, championship, team_1_id, team_2_id):
-    cur.execute("""
+    cur.execute(
+        """
                     SELECT id FROM games WHERE date = %s AND championship = %s AND team_1_id = %s AND team_2_id = %s;
                 """, (date, championship, team_1_id, team_2_id))
     filtered_id = cur.fetchone()
@@ -60,17 +58,32 @@ def get_id_games_by_name(date, championship, team_1_id, team_2_id):
 
 
 def get_id_channel_by_name(channel_name):
-    cur.execute("""
+    cur.execute(
+        """
                     SELECT id FROM channels WHERE name = %s;
                 """, (channel_name,))
     filtered_id = cur.fetchone()
-    print(filtered_id, 'existente id')
     return filtered_id
+
+
+def check_save_transmition(channel_id, game_id):
+    try:
+        cur.execute(
+            """
+                        SELECT * FROM channels_games 
+                        WHERE channel_id = %s AND game_id = %s;
+                    """, (channel_id, game_id,))
+        transmission = cur.fetchone()
+        return transmission
+    except Exception as e:
+        print("error:", e)
+        return None
 
 
 def insert_into_teams(team_name, team_img):
     try:
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO teams (name, img)
             VALUES (%s, %s)
             RETURNING id;
@@ -86,7 +99,8 @@ def insert_into_teams(team_name, team_img):
 
 def insert_into_games(date, championship, team_1_id, team_2_id):
     try:
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO games (date, championship, team_1_id, team_2_id)
             VALUES (%s, %s, %s, %s)
             RETURNING id;
@@ -101,7 +115,8 @@ def insert_into_games(date, championship, team_1_id, team_2_id):
 
 def insert_into_channels(channel_name):
     try:
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO channels (name)
             VALUES (%s)
             RETURNING id;
@@ -111,6 +126,18 @@ def insert_into_channels(channel_name):
         return channel_id[0]
     except Exception as e:
         print('error:', e)
+
+
+def insert_into_channels_games(channel_id, game_id):
+    try:
+        cur.execute(
+            """
+                INSERT INTO channels_games (channel_id, game_id) 
+                VALUES (%s, %s)
+            """, (channel_id, game_id,))
+        conn.commit()
+    except Exception as e:
+        print(e)
 
 
 def add_team_if_not_exists(current_match: MatchData):
@@ -137,12 +164,24 @@ def add_team_if_not_exists(current_match: MatchData):
         datetime_formatted = datetime.strptime(
             f"{date} {hour}", "%d-%m-%Y %H:%M")
 
-        game_id = get_id_games_by_name(datetime_formatted, championship, team_1_id, team_2_id) if get_id_games_by_name(
-            datetime_formatted, championship, team_1_id, team_2_id) else insert_into_games(datetime_formatted, championship, team_1_id, team_2_id)
+        game_id = get_id_games_by_name(
+            datetime_formatted, championship,
+            team_1_id, team_2_id) if get_id_games_by_name(
+                datetime_formatted, championship,
+                team_1_id, team_2_id) else insert_into_games(
+                    datetime_formatted, championship, team_1_id, team_2_id)
 
         for channel in channels:
-            channel_id = get_id_channel_by_name(channel) if get_id_channel_by_name(channel) else insert_into_channels(channel)
-            
+            channel_id = get_id_channel_by_name(
+                channel) if get_id_channel_by_name(
+                    channel) else insert_into_channels(channel)
+
+            if not check_save_transmition(channel_id, game_id):
+                try:
+                    if game_id and channel_id:
+                        insert_into_channels_games(channel_id, game_id)
+                except Exception as e:
+                    print("ERROR", e)
 
     except Exception as e:
         print("ERROR", e)
