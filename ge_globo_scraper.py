@@ -12,6 +12,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
 from database_wrapper import add_team_if_not_exists
+from type import MatchData
 
 options = Options()
 options.add_argument("--headless=new")
@@ -113,7 +114,8 @@ def scrape_globo_matches():
                             for channel_match_info in channels_match:
                                 channel = channel_match_info.find_element(
                                     By.CLASS_NAME, "sc-iVCKna.lhodZX").text.strip()
-                                if channel != "Cartola":
+
+                                if not re.search(r"(?i)\bcartola\b", channel) and not re.search(r"(?i)\bingressos\b", channel):
                                     channels.append(channel)
 
                             try:
@@ -122,16 +124,14 @@ def scrape_globo_matches():
                             except:
                                 hour = None
 
-                            current_match = {
-                                "date": date_str,
-                                "hour": hour,
-                                "event_name": event_name,
-                                "team_1_name": team_1_name,
-                                "team_1_img": team_1_image,
-                                "team_2_name": team_2_name,
-                                "team_2_img": team_2_image,
-                                "channels": channels
-                            }
+                            current_match = MatchData(date=date_str,
+                                                      hour=hour,
+                                                      event_name=event_name,
+                                                      team_1_name=team_1_name,
+                                                      team_1_img=team_1_image,
+                                                      team_2_name=team_2_name,
+                                                      team_2_img=team_2_image,
+                                                      channels=channels)
 
                             add_team_if_not_exists(current_match)
 
