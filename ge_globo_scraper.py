@@ -3,7 +3,7 @@ import time
 from datetime import datetime, timedelta
 
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, TimeoutException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -29,10 +29,30 @@ driver = webdriver.Chrome(
 BASE_URL = "https://ge.globo.com/agenda/#/futebol/"
 
 
+def close_modal():
+    try:
+        close_button = driver.find_element(
+            By.CSS_SELECTOR, 'button[aria-label="Fechar"]')
+        driver.execute_script("arguments[0].click();", close_button)
+        try:
+            WebDriverWait(driver, 3).until(EC.invisibility_of_element_located(
+                (By.CSS_SELECTOR, "div.sc-beqWaB.clVhmj")))
+        except TimeoutException:
+            pass
+
+        time.sleep(0.3)
+    except NoSuchElementException:
+        pass
+    except StaleElementReferenceException:
+        pass
+    except Exception as e:
+        print(f"⚠️ Não foi possível fechar o modal: {e}")
+
+
 def scrape_globo_matches():
     try:
         today = datetime.today()
-        for i in range(5):
+        for i in range(7):
             current_date = today + timedelta(days=i)
             date_str = current_date.strftime("%d-%m-%Y")
             url = f"{BASE_URL}{date_str}"
@@ -49,66 +69,78 @@ def scrape_globo_matches():
 
             championship_groups = WebDriverWait(driver, 20).until(
                 EC.presence_of_all_elements_located(
-                    (By.CSS_SELECTOR, 'div.eventGrouperstyle__GroupByChampionshipsWrapper-sc-1bz1qr-0.gumeun'))
+                    (By.CSS_SELECTOR, "div.eventGrouperstyle__GroupByChampionshipsWrapper-sc-1bz1qr-0.gumeun")
+                )
             )
 
             for championship in championship_groups:
-                event_name_tag = championship.find_element(
-                    By.CLASS_NAME, 'eventGrouperstyle__ChampionshipName-sc-1bz1qr-2.eDkDKF')
-                event_name = event_name_tag.text if event_name_tag else None
+
+                event_name_element = championship.find_element(
+                    By.CSS_SELECTOR,
+                    "span.eventGrouperstyle__ChampionshipName-sc-1bz1qr-2.eDkDKF"
+                )
+
+                event_name = event_name_element.get_attribute(
+                    "textContent").strip()
 
                 tournament_matches = championship.find_elements(
-                    By.CSS_SELECTOR, 'a.sc-eldPxv.fdoTBT')
+                    By.CSS_SELECTOR, "div.eventGrouperstyle__MomentsWrapper-sc-1bz1qr-1.fFghZX"
+                )
 
                 for match in tournament_matches:
+
+                    close_modal()
                     try:
                         button_where_to_watch = match.find_element(
-                            By.CLASS_NAME, 'sc-hzhJZQ.SLnjU')
-                        time.sleep(1.2)
-                        if button_where_to_watch.text.strip() == "Onde assistir?":
-                            driver.execute_script(
-                                "arguments[0].scrollIntoView(true);", button_where_to_watch)
-                            time.sleep(0.4)
-                            driver.execute_script(
-                                "arguments[0].click();", button_where_to_watch)
-                            time.sleep(1.2)
+                            By.XPATH,
+                            ".//button[normalize-space(.)='Onde assistir?']"
+                        )
 
-                            team_1 = match.find_element(
-                                By.CLASS_NAME, "sc-bmzYkS.ivQJob")
+                        time.sleep(0.5)
+
+                        driver.execute_script(
+                            "arguments[0].scrollIntoView(true);", button_where_to_watch)
+                        time.sleep(1)
+                        driver.execute_script(
+                            "arguments[0].click();", button_where_to_watch)
+                        time.sleep(1.2)
+
+                        try:
+                            modal = WebDriverWait(driver, 5).until(
+                                EC.visibility_of_element_located((
+                                    By.CSS_SELECTOR,
+                                    "div.sc-beqWaB.clVhmj"
+                                ))
+                            )
+
+                            team_1 = modal.find_element(
+                                By.CSS_SELECTOR, "div.contestantstyle__Container-sc-y6je6b-0.cBOSbt")
+
                             team_1_name_tag = team_1.find_element(
-                                By.CSS_SELECTOR, "span.sc-eeDRCY.kXIsjf").text.strip()
+                                By.CSS_SELECTOR, "div.contestantstyle__ContestantName-sc-y6je6b-1.iXjbfi").text.strip()
+
                             team_1_name = team_1_name_tag if team_1_name_tag else None
+
                             team_1_image = team_1.find_element(
                                 By.CSS_SELECTOR, "img").get_attribute("src")
 
-                            team_2 = match.find_element(
-                                By.CLASS_NAME, "sc-bmzYkS.epSQAH")
+                            team_2 = modal.find_element(
+                                By.CSS_SELECTOR, "div.contestantstyle__Container-sc-y6je6b-0.caytXM")
+
                             team_2_name_tag = team_2.find_element(
-                                By.CSS_SELECTOR, "span.sc-eeDRCY.kXIsjf").text.strip()
+                                By.CSS_SELECTOR, "div.contestantstyle__ContestantName-sc-y6je6b-1.iXjbfi").text.strip()
+
                             team_2_name = team_2_name_tag if team_2_name_tag else None
+
                             team_2_image = team_2.find_element(
                                 By.CSS_SELECTOR, "img").get_attribute("src")
 
-                            if not team_1_name or not team_2_name:
-                                try:
-                                    close_button = driver.find_element(
-                                        By.CSS_SELECTOR, 'button[aria-label="Fechar"]')
-                                    close_button.click()
-                                except Exception:
-                                    pass
-                                continue
-
-                            modal_content = WebDriverWait(driver, 10).until(
-                                EC.visibility_of_element_located(
-                                    (By.ID, "drawer_container-agenda-modrawer"))
-                            )
-
-                            channels_match = modal_content.find_elements(
+                            channels_match = modal.find_elements(
                                 By.CLASS_NAME, 'sc-ewnqHT.gHsKNV')
 
                             channels = []
 
-                            date_match = modal_content.find_elements(
+                            date_match = modal.find_elements(
                                 By.CSS_SELECTOR, 'span.infosstyle__FooterItem-sc-pa6je2-3.eutUSD')
 
                             for channel_match_info in channels_match:
@@ -116,13 +148,24 @@ def scrape_globo_matches():
                                     By.CLASS_NAME, "sc-iVCKna.lhodZX").text.strip()
 
                                 if not re.search(r"(?i)\bcartola\b", channel) and not re.search(r"(?i)\bingressos\b", channel):
-                                    channels.append(channel)
+                                    if channel not in channels:
+                                        channels.append(channel)
 
                             try:
                                 hour = next((t.text.strip() for t in date_match if re.match(
                                     r'^\d{2}:\d{2}$', t.text.strip())), None)
                             except:
                                 hour = None
+
+                            if not channels:
+                                continue
+
+                            if not team_1_name or not team_2_name:
+                                try:
+                                    close_modal()
+                                except Exception:
+                                    pass
+                                continue
 
                             current_match = MatchData(date=date_str,
                                                       hour=hour,
@@ -135,13 +178,15 @@ def scrape_globo_matches():
 
                             add_team_if_not_exists(current_match)
 
-                        try:
-                            close_button = modal_content.find_element(
-                                By.CSS_SELECTOR, 'button[aria-label="Fechar"]')
-                            close_button.click()
+                            try:
+                                close_modal()
+                            except Exception:
+                                pass
 
                         except Exception:
                             pass
+                    except Exception:
+                        pass
 
                     except NoSuchElementException:
                         continue
